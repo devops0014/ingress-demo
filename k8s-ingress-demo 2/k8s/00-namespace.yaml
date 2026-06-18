@@ -1,0 +1,12 @@
+# ============================================================
+# Namespace: bookstore
+# All resources for this demo are isolated in this namespace.
+# This is a best practice — avoids polluting the default namespace.
+# ============================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bookstore
+  labels:
+    app: bookstore
+    purpose: ingress-demo

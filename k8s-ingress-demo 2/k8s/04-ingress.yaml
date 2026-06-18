@@ -1,0 +1,96 @@
+# ============================================================
+# INGRESS RESOURCE — The star of this demo!
+#
+# An Ingress is a K8s API object that manages EXTERNAL access
+# to Services inside the cluster, typically via HTTP/HTTPS.
+#
+# It acts as a SMART REVERSE PROXY / LAYER-7 LOAD BALANCER.
+#
+# WITHOUT Ingress → you need one LoadBalancer per Service (expensive!)
+# WITH Ingress    → one external IP routes to ALL services by path/host
+#
+# PREREQUISITE: An Ingress Controller must be installed.
+#   For Minikube: minikube addons enable ingress
+#   For others:   helm install ingress-nginx ingress-nginx/ingress-nginx
+# ============================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bookstore-ingress
+  namespace: bookstore
+  labels:
+    app: bookstore
+  annotations:
+    # ── IMPORTANT: use ingressClassName in spec instead of this annotation
+    # kubernetes.io/ingress.class: "nginx"   ← deprecated, removed below
+
+    # Enable CORS for browser-based API calls
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+
+    # NOTE: configuration-snippet is intentionally removed.
+    # Newer nginx ingress controllers (>= 1.2) block it by default
+    # unless allow-snippet-annotations=true is set on the controller.
+    # Leaving it in causes the Ingress to silently fail → 404.
+
+spec:
+  # ── ingressClassName ──────────────────────────────────────
+  # The modern way to select the Ingress controller (K8s >= 1.18).
+  # Run: kubectl get ingressclass   to confirm "nginx" exists.
+  ingressClassName: nginx
+
+  rules:
+    # ── Routing Rule: all traffic to bookstore.local ───────
+    # For local testing: add "$(minikube ip)  bookstore.local" to /etc/hosts
+    - host: bookstore.local
+
+      http:
+        paths:
+
+          # ── Path 1: Books API ──────────────────────────────
+          # Matches: /api/books, /api/books/1, /api/books/2 ...
+          - path: /api/books
+            pathType: Prefix          # Prefix = match this path AND anything that starts with it
+            backend:
+              service:
+                name: books-svc       # Routes to the books ClusterIP Service
+                port:
+                  number: 80
+
+          # ── Path 2: Reviews API ───────────────────────────
+          # Matches: /api/reviews, /api/reviews?bookId=1 ...
+          - path: /api/reviews
+            pathType: Prefix
+            backend:
+              service:
+                name: reviews-svc     # Routes to the reviews ClusterIP Service
+                port:
+                  number: 80
+
+          # ── Path 3: Frontend (catch-all) ──────────────────
+          # IMPORTANT: Put the most specific paths FIRST.
+          # / matches everything not matched above.
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-svc    # Routes to the frontend ClusterIP Service
+                port:
+                  number: 80
+
+# ============================================================
+# HOW PATH MATCHING WORKS (teach this!):
+#
+#   Request URL           → Matched Path  → Backend Service
+#   ──────────────────────────────────────────────────────
+#   /                     → /             → frontend-svc
+#   /about                → /             → frontend-svc
+#   /api/books            → /api/books    → books-svc
+#   /api/books/3          → /api/books    → books-svc
+#   /api/reviews          → /api/reviews  → reviews-svc
+#   /api/reviews?bookId=1 → /api/reviews  → reviews-svc
+#
+# pathType options:
+#   Prefix  — matches the path prefix (most common)
+#   Exact   — must match exactly, no sub-paths
+#   ImplementationSpecific — depends on the Ingress controller
+# ============================================================

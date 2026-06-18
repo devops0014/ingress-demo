@@ -1,0 +1,82 @@
+# ============================================================
+# FRONTEND SERVICE
+# Serves the HTML UI at path: /
+# ============================================================
+
+# --- Deployment ---
+# A Deployment manages a set of identical pods (replicas).
+# If a pod crashes, the ReplicaSet controller restarts it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: bookstore
+  labels:
+    app: bookstore
+    tier: frontend
+spec:
+  replicas: 2                      # Run 2 pods for basic availability
+  selector:
+    matchLabels:
+      app: bookstore
+      tier: frontend               # Deployment manages pods with these labels
+  template:
+    metadata:
+      labels:
+        app: bookstore
+        tier: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: bookstore-frontend:latest   # Replace with your registry image
+          imagePullPolicy: IfNotPresent      # Use local image (good for minikube demos)
+          ports:
+            - containerPort: 3000
+          env:
+            - name: PORT
+              value: "3000"
+          # Liveness probe: K8s restarts the container if this fails
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          # Readiness probe: K8s only sends traffic when this passes
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+
+---
+
+# --- Service ---
+# A ClusterIP Service gives the Deployment a stable internal DNS name
+# and load-balances traffic across all healthy pods.
+# Type: ClusterIP = internal only. The Ingress is what exposes it externally.
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-svc
+  namespace: bookstore
+  labels:
+    app: bookstore
+    tier: frontend
+spec:
+  type: ClusterIP               # Internal only — Ingress handles external access
+  selector:
+    app: bookstore
+    tier: frontend              # Routes to pods with these labels
+  ports:
+    - name: http
+      port: 80                  # Port the Service listens on (inside the cluster)
+      targetPort: 3000          # Port the container listens on
